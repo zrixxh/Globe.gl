@@ -1,1 +1,126 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Visitor Counter Globe</title>
+  <style>
+    body, html { margin: 0; padding: 0; overflow: hidden; height: 100vh; background: #111; color: white; font-family: Arial, sans-serif; }
+    #counter {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 2rem;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 20px;
+      border-radius: 8px;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+    }
+    #globeViz {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+
+<div id="counter">Visitors: Loading...</div>
+<div id="globeViz"></div>
+
+<script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+<script src="https://unpkg.com/globe.gl"></script>
+
+<script>
+  const counterEl = document.getElementById('counter');
+
+  // Use CountAPI to increment & get visitor count
+  // Namespace and key can be anything unique
+  const namespace = 'walt-disney-fanpage';
+  const key = 'visitor-counter';
+
+  async function updateVisitorCount() {
+    try {
+      const res = await fetch(`https://api.countapi.xyz/hit/${namespace}/${key}`);
+      const data = await res.json();
+      counterEl.textContent = `Visitors: ${data.value}`;
+      return data.value;
+    } catch(e) {
+      counterEl.textContent = 'Visitors: Error loading count';
+      return null;
+    }
+  }
+
+  // Initialize globe
+  const Globe = GlobeGL().globeImageUrl('//unpkg.com/three-globe/example/img/earth-dark.jpg');
+  document.getElementById('globeViz').appendChild(Globe.renderer().domElement);
+
+  // Set some basic globe config
+  Globe.width([window.innerWidth]);
+  Globe.height([window.innerHeight]);
+  Globe.pointOfView({lat: 0, lng: 0, altitude: 2});
+
+  // Add a simple glow or label with visitor count
+  async function main() {
+    const count = await updateVisitorCount();
+
+    // Create a simple label with visitor count that floats over the globe
+    // Using Three.js Sprite to display text
+
+    if (!count) return;
+
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: createTextTexture(`Visitors: ${count}`),
+      transparent: true
+    });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(4, 2, 1); // scale size of sprite
+
+    // Position sprite above the globe's "north pole" (lat 90)
+    // Convert lat/lng to xyz on sphere radius 1
+    const radius = 1.5;
+    const phi = (90) * Math.PI / 180; // 90° latitude north pole
+    const theta = 0; // longitude
+
+    sprite.position.set(
+      radius * Math.cos(phi) * Math.cos(theta),
+      radius * Math.sin(phi),
+      radius * Math.cos(phi) * Math.sin(theta)
+    );
+
+    Globe.scene().add(sprite);
+  }
+
+  // Helper to create a text texture for Three.js sprite
+  function createTextTexture(text) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const width = 512;
+    const height = 256;
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx.font = 'bold 64px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, width/2, height/2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  }
+
+  main();
+
+  // Responsive resizing
+  window.addEventListener('resize', () => {
+    Globe.width(window.innerWidth);
+    Globe.height(window.innerHeight);
+    Globe.renderer().setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+
+</body>
+</html>
